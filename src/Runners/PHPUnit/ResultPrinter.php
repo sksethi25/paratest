@@ -104,6 +104,31 @@ class ResultPrinter
      */
     protected $processSkipped = false;
 
+    /**
+     * @var array
+    */
+    private static $ansiCodes = [
+        'bold'       => 1,
+        'fg-black'   => 30,
+        'fg-red'     => 31,
+        'fg-green'   => 32,
+        'fg-yellow'  => 33,
+        'fg-blue'    => 34,
+        'fg-magenta' => 35,
+        'fg-cyan'    => 36,
+        'fg-white'   => 37,
+        'bg-black'   => 40,
+        'bg-red'     => 41,
+        'bg-green'   => 42,
+        'bg-yellow'  => 43,
+        'bg-blue'    => 44,
+        'bg-magenta' => 45,
+        'bg-cyan'    => 46,
+        'bg-white'   => 47,
+    ];
+
+    private $previous_class="";
+
     public function __construct(LogInterpreter $results)
     {
         $this->results = $results;
@@ -307,8 +332,34 @@ class ResultPrinter
 
         $this->processTestOverhead($actualTestCount, $expectedTestCount);
 
+        $suites = $reader->getSuites();
+
+        $suites = $reader->isSingleSuite() ? $suites : $suites[0]->suites;
+        $i=0;
+
         foreach ($feedbackItems as $item) {
-            $this->printFeedbackItem($item);
+            $start_time = microtime(true);
+            $class = $suites[0]->cases[$i]->class;
+            $test_name = $suites[0]->cases[$i]->name;
+            $i++;
+
+            // Print Class Name.
+            if($this->previous_class !== $class){
+                echo $class;
+                $this->println();
+            }
+            // Print Success/Fail Icon.
+            $this->printFeedbackItemIcon($item);
+           
+            $end_time = microtime(true);
+            $time_taken = round(($end_time - $start_time)*1000,3);
+             
+            // Print Test Name.
+            $this->printFeedbackTestName($test_name);
+            echo " [".$time_taken."s]";
+            $this->println();
+            $this->previous_class= $class;
+
             if ($item === 'S') {
                 ++$this->totalSkippedOrIncomplete;
             }
@@ -317,6 +368,7 @@ class ResultPrinter
         if ($this->processSkipped) {
             $this->printSkippedAndIncomplete($actualTestCount, $expectedTestCount);
         }
+        $this->println();
     }
 
     /**
@@ -541,6 +593,124 @@ class ResultPrinter
     {
         foreach ($this->suites as $suite) {
             $suite->deleteFile();
+        }
+    }
+
+        /**
+     * Writes a buffer out with a color sequence if colors are enabled.
+     */
+    protected function writeWithColor(string $color, string $buffer, bool $lf = true): void
+    {
+        $this->write($this->formatWithColor($color, $buffer));
+
+        if ($lf) {
+            $this->write("\n");
+        }
+    }
+
+    protected function write($value)
+    {
+        echo $value;
+    }
+
+    /**
+     * Formats a buffer with a specified ANSI color sequence if colors are
+     * enabled.
+     */
+    protected function formatWithColor(string $color, string $buffer): string
+    {
+        $codes   = \array_map('\trim', \explode(',', $color));
+        $lines   = \explode("\n", $buffer);
+        $padding = \max(\array_map('\strlen', $lines));
+        $styles  = [];
+
+        foreach ($codes as $code) {
+            $styles[] = self::$ansiCodes[$code];
+        }
+
+        $style = \sprintf("\x1b[%sm", \implode(';', $styles));
+
+        $styledLines = [];
+
+        foreach ($lines as $line) {
+            $styledLines[] = $style . \str_pad($line, $padding) . "\x1b[0m";
+        }
+
+        return \implode("\n", $styledLines);
+    }
+
+
+    protected function printFeedbackItemIcon(String $item){
+        switch (strtoupper($item)) {
+            case '.':
+                $this->writeWithColor('fg-green', '  ✓', false);
+
+                break;
+            case 'S':
+                $this->writeWithColor('fg-yellow', '  →', false);
+
+                break;
+            case 'I':
+                $this->writeWithColor('fg-blue', '  ∅', false);
+
+                break;
+            case 'F':
+                $this->writeWithColor('fg-red', '  x', false);
+
+                break;
+            case 'E':
+                $this->writeWithColor('fg-red', '  ⚈', false);
+
+                break;
+            case 'R':
+                $this->writeWithColor('fg-magenta', '  ⌽', false);
+
+                break;
+            case 'W':
+                $this->writeWithColor('fg-yellow', '  ¤', false);
+
+                break;
+            default:
+                $this->writeWithColor('fg-cyan', '  ≈', false);
+
+                break;
+        }
+    }
+
+    protected function printFeedbackTestName(String $test_name){
+        switch (strtoupper($test_name)) {
+            case '.':
+                $this->writeWithColor('fg-green', ' '.$test_name, false);
+
+                break;
+            case 'S':
+                $this->writeWithColor('fg-yellow', ' '.$test_name, false);
+
+                break;
+            case 'I':
+                $this->writeWithColor('fg-blue', ' '.$test_name, false);
+
+                break;
+            case 'F':
+                $this->writeWithColor('fg-red', ' '.$test_name, false);
+
+                break;
+            case 'E':
+                $this->writeWithColor('fg-red', ' '.$test_name, false);
+
+                break;
+            case 'R':
+                $this->writeWithColor('fg-magenta', ' '.$test_name, false);
+
+                break;
+            case 'W':
+                $this->writeWithColor('fg-yellow', ' '.$test_name, false);
+
+                break;
+            default:
+                $this->writeWithColor('fg-cyan', ' '.$test_name, false);
+
+                break;
         }
     }
 }
